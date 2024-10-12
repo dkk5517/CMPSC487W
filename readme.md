@@ -33,17 +33,17 @@ This project is a Python-based car rental system for managing reservations of ca
    cd CMPSC487W
 Create the Database: Before running the application, you need to set up the database. Run the db_setup.py script to create the necessary tables:
 
-    ```bash
+    
     python db_setup.py
 This script will create the Cars and Reservations tables in a SQLite database.
 
 Run the Application: Start the application by running the interface.py file:
 
-     ``bash
+     
      python interface.py
 This will open the graphical user interface for the car rental system.
 
-###How to Use
+### How to Use
 For Drivers
 Make a Reservation:
 
@@ -55,11 +55,7 @@ If you need to extend your reservation, provide the necessary details and click 
 For Mr. Johnson
 View Reservations:
 The GUI provides a view of all current reservations. Click the button to load the list of reservations and see details about each one.
-Screenshots
-(Include screenshots of the application here)
 
-Screenshot of the reservation form
-Screenshot of the reservations list for Mr. Johnson
 Additional Notes
 Ensure that your Python environment is set up correctly with the required libraries.
 If you encounter any issues, check the console for error messages, which can help diagnose problems.
