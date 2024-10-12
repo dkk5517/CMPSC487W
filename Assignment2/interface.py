@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox
 from functions import *
+
 # Function for submitting a reservation
 def submit_reservation():
     driver_name = entry_driver_name.get()
@@ -21,6 +22,17 @@ def display_reservations():
     for res in reservations:
         display_text += f"ID: {res[0]}, Driver: {res[1]}, Car: {res[2]}, Check-Out: {res[3]}, Return: {res[4]}\n"
     messagebox.showinfo("Reservations", display_text)
+
+# Function to extend a reservation
+def extend_reservation():
+    reservation_id = entry_reservation_id.get()
+    new_return_time = entry_new_return_time.get()
+    
+    if reservation_id and new_return_time:
+        result = request_extension(reservation_id, new_return_time)
+        messagebox.showinfo("Extension Status", result)
+    else:
+        messagebox.showwarning("Input Error", "Please fill all fields")
 
 # GUI Setup
 root = tk.Tk()
@@ -54,5 +66,20 @@ btn_submit.pack()
 # View Reservations Button
 btn_view_reservations = tk.Button(root, text="View Reservations", command=display_reservations)
 btn_view_reservations.pack()
+
+# Labels and Entry Widgets for Extending Reservation
+label_reservation_id = tk.Label(root, text="Reservation ID to Extend")
+label_reservation_id.pack()
+entry_reservation_id = tk.Entry(root)
+entry_reservation_id.pack()
+
+label_new_return_time = tk.Label(root, text="New Return Time (YYYY-MM-DD HH:MM)")
+label_new_return_time.pack()
+entry_new_return_time = tk.Entry(root)
+entry_new_return_time.pack()
+
+# Extend Reservation Button
+btn_extend_reservation = tk.Button(root, text="Extend Reservation", command=extend_reservation)
+btn_extend_reservation.pack()
 
 root.mainloop()
