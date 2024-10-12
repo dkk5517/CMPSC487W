@@ -1,6 +1,6 @@
 # Car Rental System for Mr. Johnson
 
-This project is a Python-based car rental system for managing reservations of cars like sedans, SUVs, pick-ups, and vans. The system allows drivers to make reservations, request extensions, and provides a view for Mr. Johnson to manage the reservations.
+This project is a Python-based car rental system for managing reservations of cars like sedans, SUVs, pick-ups, and vans. The system allows drivers to make reservations, request extensions, and provides a view for Mr. Johnson to manage the reservations. For Assignment2 of CMPSC487W
 
 ## Table of Contents
 
