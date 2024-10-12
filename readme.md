@@ -59,3 +59,6 @@ The GUI provides a view of all current reservations. Click the button to load th
 Additional Notes
 Ensure that your Python environment is set up correctly with the required libraries.
 If you encounter any issues, check the console for error messages, which can help diagnose problems.
+
+
+[![Watch the video](https://youtu.be/ss23QgiHcTw)](https://www.youtube.com/watch?v=ss23QgiHcTw&ab_channel=DewanikKoirala)
