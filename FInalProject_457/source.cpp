@@ -1,10 +1,17 @@
 #define _CRT_SECURE_NO_WARNINGS
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 #include <GL/glut.h>
 #include <cmath>
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include "obj_loader.h"
+
+// Create an instance of the OBJ loader
+objl::Loader loader;
 struct Vertex { float x, y, z; };
 
 std::vector<Vertex> vertices; // Store vertex positions
@@ -22,7 +29,19 @@ bool moonLightOn = true;   // Toggle for moonlight
 float modelPosX = -3.0f; // Start position of the model (X-axis)
 float modelSpeed = 0.01f; // Movement speed
 bool moveAstronaut = false; // Flag to control astronaut movement
+float cameraZoom = 8.5f; // Camera zoom (initial value)
+float cameraAngleX = 0.0f; // Left/right rotation
+float cameraX = 0.0f; // X-position of the camera
+float cameraY = 0.0f; // X-position of the camera
+float cameraZ = 8.5f; // Default Z-position of the camera
+float cameraSpeed = 0.5f; // Speed of camera translation
 
+// Object position
+float objectPositionY = 0.0f; // Initial position along the Y-axis
+float objectPositionX = 0.0f; // Initial position along the X-axis
+float rotationAngleX = 0.0f; // Initial rotation angle around X-axis
+float rotationAngleY = 0.0f; // Initial rotation angle around Y-axis
+float rotationAngleZ = 0.0f; // Initial rotation angle around Z-axis
 // Function prototypes
 void display();
 void reshape(int w, int h);
@@ -33,80 +52,36 @@ void initLighting();
 void handleKeyboard(unsigned char key, int x, int y);
 void drawMoonWithLight();
 void drawParametricMoon();
+void handleSpecialKeyboard(int key, int x, int y);
 
-bool loadOBJ(const char* path) {
-    FILE* file = fopen(path, "r");
-    if (fopen_s(&file, path, "r") != 0 || !file) {
-        std::cerr << "Cannot open OBJ file: " << path << "\n";
-        return false;
-    }
+// Load the OBJ file and its associated MTL file
+bool loadModel(const std::string& filename) {
+    return loader.LoadFile(filename);
+}
 
-    std::vector<Vertex> tempVertices;
-    std::vector<Vertex> tempNormals;
-    std::vector<std::vector<int>> faces;
-
-    while (true) {
-        char lineHeader[128];
-        int res = fscanf(file, "%s", lineHeader);
-        if (res == EOF) break;
-
-        if (strcmp(lineHeader, "v") == 0) { // Vertex position
-            Vertex vertex;
-            fscanf(file, "%f %f %f\n", &vertex.x, &vertex.y, &vertex.z);
-            tempVertices.push_back(vertex);
-        }
-        else if (strcmp(lineHeader, "vn") == 0) { // Normal vector
-            Vertex normal;
-            fscanf(file, "%f %f %f\n", &normal.x, &normal.y, &normal.z);
-            tempNormals.push_back(normal);
-        }
-        else if (strcmp(lineHeader, "f") == 0) { // Face
-            std::vector<int> faceVertices;
-            int vIndex[3], vnIndex[3];
-
-            int matches = fscanf(file, "%d//%d %d//%d %d//%d\n", &vIndex[0], &vnIndex[0], &vIndex[1], &vnIndex[1], &vIndex[2], &vnIndex[2]);
-            if (matches == 6) {
-                faceVertices.push_back(vIndex[0] - 1);
-                faceVertices.push_back(vIndex[1] - 1);
-                faceVertices.push_back(vIndex[2] - 1);
-                faces.push_back(faceVertices);
-            }
-        }
-    }
-    fclose(file);
-
-    // Copy the vertices into the main array
-    for (const auto& v : tempVertices) {
-        vertices.push_back(v);
-    }
-
-    // Handle face rendering (example)
-    for (const auto& face : faces) {
+void drawOBJ() {
+    glTranslatef(0.0f, 2.8f, 0.0f);
+    for (const auto& mesh : loader.LoadedMeshes) {
         glBegin(GL_TRIANGLES);
-        for (int i = 0; i < 3; ++i) {
-            const Vertex& vertex = vertices[face[i]];
-            glVertex3f(vertex.x, vertex.y, vertex.z);
+        for (const auto& index : mesh.Indices) {
+            const auto& vertex = mesh.Vertices[index];
+            glNormal3f(vertex.Normal.X, vertex.Normal.Y, vertex.Normal.Z);
+            glColor3f(1.0f, 1.0f, 1.0f); // Set object color to white
+            glVertex3f(vertex.Position.X * 0.5f, vertex.Position.Y * 0.5f, vertex.Position.Z * 0.5f); // Scale down the object
         }
         glEnd();
     }
 
-    return true;
+
 }
 
-void drawOBJ() {
-    glBegin(GL_POINTS); // Assume the OBJ contains triangles
-    for (size_t i = 0; i < vertices.size(); i++) {
-        glVertex3f(vertices[i].x, vertices[i].y, vertices[i].z);
-    }
-    glEnd();
-}
 
 void drawCustomSpaceModel() {
     // Set the color for stars
     glColor3f(1.0f, 1.0f, 1.0f); // Set color for stars (white)
 
     // Number of stars
-    const int numStars = 20;
+    const int numStars = 15;
     for (int i = 0; i < numStars; ++i) {
         // Randomize star position
         float x = (rand() % 200 - 100) / 10.0f;
@@ -120,35 +95,31 @@ void drawCustomSpaceModel() {
         glPopMatrix();
     }
 }
-void renderText(const char* text) {
+void renderText(const char* text, int x, int y) {
     glMatrixMode(GL_PROJECTION);
-    glPushMatrix(); // Save current projection matrix
-    glLoadIdentity(); // Reset projection matrix
+    glPushMatrix();
+    glLoadIdentity();
     gluOrtho2D(0, WIDTH, 0, HEIGHT); // Set orthographic projection (screen coordinates)
 
     glMatrixMode(GL_MODELVIEW);
-    glPushMatrix(); // Save current modelview matrix
-    glLoadIdentity(); // Reset modelview matrix
+    glPushMatrix();
+    glLoadIdentity();
 
-    glDisable(GL_LIGHTING); // Disable lighting so text is visible
-    glColor3f(1.0f, 1.0f, 1.0f); // White text color
+    glDisable(GL_LIGHTING); // Disable lighting to make text visible
+    glColor3f(1.0f, 1.0f, 1.0f); // White text
 
-    // Set the position in screen coordinates (top-left)
-    glRasterPos2i(10, HEIGHT - 20); // (x, y) in pixels
-
-    // Render each character
+    glRasterPos2i(x, y); // Set the position for text
     for (const char* c = text; *c != '\0'; ++c) {
         glutBitmapCharacter(GLUT_BITMAP_9_BY_15, *c);
     }
 
-    glEnable(GL_LIGHTING); // Re-enable lighting
-
-    // Restore matrices
+    glEnable(GL_LIGHTING);
     glPopMatrix();
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
     glMatrixMode(GL_MODELVIEW);
 }
+
 
 int main(int argc, char** argv) {
     // Initialize GLUT
@@ -165,10 +136,13 @@ int main(int argc, char** argv) {
 
     // Register callbacks
     glutDisplayFunc(display);
+    glutIdleFunc(display); // Automatically call display function to create continuous movement
     glutReshapeFunc(reshape);
     glutKeyboardFunc(handleKeyboard);
+    glutSpecialFunc(handleSpecialKeyboard);
+
     glutTimerFunc(0, timer, 0);
-    if (!loadOBJ("astro.obj")) {
+    if (!loadModel("astro.obj")) {
         std::cerr << "Failed to load astro.obj\n";
         return -1;
     }
@@ -180,23 +154,37 @@ int main(int argc, char** argv) {
 }
 
 void display() {
+    
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
 
     // Draw the instruction text
-    renderText("Press L to turn on/off spotlight from the moon");
+    renderText("Instructions:", 10, HEIGHT - 20);
+    renderText("Press '+' to zoom in", 10, HEIGHT - 40);
+    renderText("Press '-' to zoom out", 10, HEIGHT - 60);
+    renderText("Press Left/Right (A/D) to rotate camera", 5, HEIGHT - 80);
+    renderText("Forward/Back arrows to move camera up/down", 5, HEIGHT - 100);
+    renderText("Press 'L' to toggle moonlight", 10, HEIGHT - 120);
+    renderText("Astrounat on Top of the World", 10, HEIGHT - 150);
+
     // Render the flying astro.obj model
     glPushMatrix();
     glTranslatef(0.0f, 0.0f, 0.0f); // Translate to the center (X, Y, Z = 0)
     glScalef(1.0f, 1.0f, 1.0f); // Scale up the model significantly
     glColor3f(0.9f, 0.9f, 0.9f); // Light gray color for astronaut
-    drawOBJ();
+   
     glPopMatrix();
+    float cameraX = sin(cameraAngleX * M_PI / 180.0f) * cameraZoom;
+    float cameraZ = cos(cameraAngleX * M_PI / 180.0f) * cameraZoom;
 
-    // Set up the camera
-    gluLookAt(0.0f, 0.0f, 8.5f,  // Move camera closer to the center (reduce Z value)
-        0.0f, 0.0f, 0.0f,   // Look at the center
-        0.0f, 1.0f, 0.0f);  // Up direction
+
+    gluLookAt(
+        cameraX, 0.0f, cameraZ,  // Camera position (X, Y, Z)
+        cameraX, cameraY, 0.0f,     // Look-at point moves with cameraX
+        0.0f, 1.0f, 0.0f         // Up direction
+    );
+
+
 
 
     // Apply Earth's rotation
@@ -205,7 +193,7 @@ void display() {
     // Bind Earth texture and draw
     glBindTexture(GL_TEXTURE_2D, earthTexture);
     glEnable(GL_TEXTURE_2D);
-    drawSphere(1.0f, 50, 50);
+    drawSphere(2.0f, 50, 50);
     glDisable(GL_TEXTURE_2D);
 
     // Draw stars
@@ -213,7 +201,7 @@ void display() {
 
     // Draw moon with texture and parametric curve
     drawMoonWithLight();
-
+    drawOBJ();
     glutSwapBuffers();
 }
 
@@ -307,41 +295,72 @@ void initLighting() {
 }
 
 void handleKeyboard(unsigned char key, int x, int y) {
-    if (key == 'l' || key == 'L') {
+    if (key == 'l' || key == 'L') { // Existing toggle for moonlight
         moonLightOn = !moonLightOn;
-        if (moonLightOn) {
-            glEnable(GL_LIGHT1);
-        }
-        else {
-            glDisable(GL_LIGHT1);
-        }
+        if (moonLightOn) glEnable(GL_LIGHT1);
+        else glDisable(GL_LIGHT1);
     }
-    else if (key == 13) { // Enter key has ASCII value 13
-        moveAstronaut = !moveAstronaut; // Toggle movement on Enter key press
+    else if (key == 13) { // Enter key
+        moveAstronaut = !moveAstronaut;
+    }
+    else if (key == '+') { // Zoom In
+        cameraZoom -= 0.5f;
+        if (cameraZoom < 2.0f) cameraZoom = 2.0f; // Prevent over-zoom
+    }
+    else if (key == '-') { // Zoom Out
+        cameraZoom += 0.5f;
+        if (cameraZoom > 20.0f) cameraZoom = 20.0f; // Prevent over-zoom
+    }
+    else if (key == 'a' || key == 'A') { // Rotate Camera Left
+        cameraAngleX -= 5.0f;
+    }
+    else if (key == 'd' || key == 'D') { // Rotate Camera Right
+        cameraAngleX += 5.0f;
     }
 }
 
+// Handle special keys like arrow keys
+void handleSpecialKeyboard(int key, int x, int y) {
+    switch (key) {
+    case GLUT_KEY_LEFT: // Move camera left
+        cameraX -= cameraSpeed;
+        break;
+    case GLUT_KEY_RIGHT: // Move camera right
+        cameraX += cameraSpeed;
+        break;
+    case GLUT_KEY_DOWN: // Move camera left
+        cameraY -= cameraSpeed;
+        break;
+    case GLUT_KEY_UP: // Move camera right
+        cameraY += cameraSpeed;
+        break;
+    }
+    glutPostRedisplay(); // Request screen redraw
+}
 void drawMoonWithLight() {
-    float moonX = 3.0f * cos(moonAngle); //parametric curve equations
-    float moonZ = 3.0f * sin(moonAngle);//parametric curve equations
+    float moonX = 3.0f * cos(moonAngle);
+    float moonZ = 3.0f * sin(moonAngle);
 
     // Set up moonlight
+  // Set up moonlight
     if (moonLightOn) {
         GLfloat moonLightPosition[] = { moonX, 0.0f, moonZ, 1.0f };
-        GLfloat moonLightDiffuse[] = { 155.5f, 155.5f, 155.2f, 155.0f };
+        GLfloat moonLightDiffuse[] = { 1.0f, 1.0f, 1.0f, 1.0f }; // Bright white light
+        GLfloat spotDirection[] = { -moonX, 0.0f, -moonZ }; // Spotlight direction (towards center)
 
         glEnable(GL_LIGHT1);
         glLightfv(GL_LIGHT1, GL_POSITION, moonLightPosition);
         glLightfv(GL_LIGHT1, GL_DIFFUSE, moonLightDiffuse);
-        glLightf(GL_LIGHT1, GL_SPOT_CUTOFF, 15.0f); // Spotlight cutoff angle (smaller angle = more focused light)
-        glLightf(GL_LIGHT1, GL_SPOT_EXPONENT, 50.0f); // Controls intensity distribution (higher = more concentrated)
-        GLfloat spotDirection[] = { -moonX, 0.0f, -moonZ }; // Direction of the spotlight (towards the center)
+
+        // Adjust spotlight parameters for larger, rounder light
+        glLightf(GL_LIGHT1, GL_SPOT_CUTOFF, 25.0f); // Larger spotlight angle (more spread out)
+        glLightf(GL_LIGHT1, GL_SPOT_EXPONENT, 50.0f); // Softer intensity distribution
         glLightfv(GL_LIGHT1, GL_SPOT_DIRECTION, spotDirection);
-        glLightf(GL_LIGHT1, GL_CONSTANT_ATTENUATION, 1.0f);  // Constant factor
-        glLightf(GL_LIGHT1, GL_LINEAR_ATTENUATION, 0.1f);   // Linear attenuation
-        glLightf(GL_LIGHT1, GL_QUADRATIC_ATTENUATION, 0.05f); // Quadratic attenuation (slightly fades with distance)
 
-
+        // Adjust attenuation for broader range
+        glLightf(GL_LIGHT1, GL_CONSTANT_ATTENUATION, 1.0f);
+        glLightf(GL_LIGHT1, GL_LINEAR_ATTENUATION, 0.02f);
+        glLightf(GL_LIGHT1, GL_QUADRATIC_ATTENUATION, 0.005f);
     }
 
     // Draw moon with texture
